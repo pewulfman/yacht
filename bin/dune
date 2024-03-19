@@ -1,0 +1,6 @@
+(executable
+ (public_name ahref_exercise)
+ (name main)
+ (libraries ahref_exercise cmdliner notty eio)
+ (preprocess
+  (pps ppx_inline_test)))
