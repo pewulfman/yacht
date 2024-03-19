@@ -1,2 +1,3 @@
 (library
- (name server))
+ (name server)
+ (libraries eio eio_main))

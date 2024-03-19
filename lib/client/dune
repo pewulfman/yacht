@@ -1,2 +1,3 @@
 (library
- (name client))
+ (name client)
+ (libraries eio eio_main))

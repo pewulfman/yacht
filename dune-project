@@ -17,7 +17,15 @@
  (name ahref_exercise)
  (synopsis "Simple Chat Server and Client in OCaml")
  (description "Simple Chat Server and Client in OCaml")
- (depends ocaml dune cmdliner eio notty ppx_deriving ppx_inline_test)
+ (depends
+  ocaml
+  dune
+  cmdliner
+  eio
+  eio_main
+  notty
+  ppx_deriving
+  ppx_inline_test)
  (tags
   (ocaml5 chat)))
 
