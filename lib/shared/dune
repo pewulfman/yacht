@@ -1,0 +1,5 @@
+(library
+ (name shared)
+ (libraries eio)
+ (preprocess
+  (pps ppx_deriving.enum ppx_deriving.show)))
