@@ -1,3 +1,3 @@
 (library
  (name client)
- (libraries eio eio_main shared))
+ (libraries eio eio_main chat))

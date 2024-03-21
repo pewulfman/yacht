@@ -1,5 +1,5 @@
 open Eio
-module Msg = Shared.Msg
+module Msg = Chat.Msg
 
 
 

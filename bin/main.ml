@@ -14,9 +14,13 @@ let client : unit Cmd.t =
   let info = Cmd.info "client" in
   Cmd.v info Term.(const Client.run $ host_arg $ port_arg)
 
+let chatest : unit Cmd.t =
+  let info = Cmd.info "chatest" in
+  Cmd.v info Term.(const (Minttea.start Chat.app ~initial_model:Chat.initModel))
+
 let cmd : unit Cmd.t =
   let doc = "Yet another Chat Server" in
   let info = Cmd.info "yacht" ~version:"%%VERSION%%" ~doc in
-  Cmd.group info [ server ; client]
+  Cmd.group info [ server ; client ; chatest ]
 
 let () = exit (Cmd.eval cmd)

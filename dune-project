@@ -22,6 +22,7 @@
   dune
   cmdliner
   eio
+  minttea
   eio_main
   notty
   ppx_deriving

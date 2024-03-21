@@ -1,6 +1,6 @@
 (executable
  (public_name ahref_exercise)
  (name main)
- (libraries server client cmdliner)
+ (libraries server client cmdliner chat)
  (preprocess
   (pps ppx_inline_test)))
