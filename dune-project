@@ -22,8 +22,6 @@
   dune
   cmdliner
   eio
-  minttea
-  leaves
   eio_main
   notty
   ppx_deriving

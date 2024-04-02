@@ -1,5 +1,5 @@
 (library
  (name chat)
- (libraries eio minttea leaves)
+ (libraries eio notty notty.unix)
  (preprocess
   (pps ppx_deriving.enum ppx_deriving.show)))
