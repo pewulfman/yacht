@@ -32,7 +32,8 @@ module Text_input = struct
     | _ -> t
 
   let view t : image =
-    I.string A.empty t
+    let open I in
+    I.string A.empty t <|> I.string A.(bg lightblue) " "
 end
 
 type message = {
@@ -71,9 +72,13 @@ let update (event : term_event) model =
 
 let view model : image =
   let open I in
-  I.string A.empty "Enter your message"
+  I.string A.empty "Messages history :"
   <->
-  (Text_input.view model.textInput)
+  List.fold_right (fun message acc -> acc <-> I.string A.empty message) model.messages I.empty
+  <->
+  I.string A.empty "Type your message and press Enter to send it"
+  <->
+  Text_input.view model.textInput
 
 let main_loop ~update ~view initModel initAction t =
   let rec loop (model,action) t =
