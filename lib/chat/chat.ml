@@ -58,11 +58,13 @@ let initModel : model = {
   messages = [];
 }
 
-let update (event : term_event) model =
+let update write (event : term_event) model =
   match event with
   | `Key (`Escape, []) -> (model, Command.Quit)
   | `Key (`Enter, []) ->
     let text = Text_input.current_text model.textInput in
+    Eio.Buf_write.string write (text ^ "\n");
+    Eio.Fiber.yield ();
     let messages = text :: model.messages in
     let textInput = Text_input.set_text "" model.textInput in
     ({messages; textInput}, Command.Noop)
@@ -87,12 +89,15 @@ let main_loop ~update ~view initModel initAction t =
   | Command.Noop ->
     let img = view model in
     Term.image t img;
-    let next_step = update (Term.event t) model in
+    let event = Term.event t in
+    let next_step = update event model in
+    Eio.Fiber.yield ();
     loop next_step t
   in loop (initModel,initAction) t
 
 
-let start () =
+let start write () =
   let t = Term.create () in
+  let update = update write in
   main_loop ~update ~view initModel Command.Noop t
 

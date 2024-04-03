@@ -1,5 +1,6 @@
 module Msg = Msg
+open Eio
 
 type model
 
-val start : unit -> unit
+val start : Buf_write.t -> unit -> unit

@@ -6,8 +6,8 @@ module Msg = Chat.Msg
 
 
 let session socket =
-  Buf_write.with_flow socket @@ fun _write ->
-  Chat.start ()
+  Buf_write.with_flow socket @@ fun write ->
+  Chat.start write ()
 
 
 let run_eio host port env : unit =
