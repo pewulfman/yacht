@@ -52,3 +52,8 @@ Looking further into the implementation on Minttea, it uses the `Riot` lib for h
 ## Part 3 again. User interface (Notty)
 
 This part was actually quite straightforward. I reimplemented the main_loop and ended_up with a similar API so I could reuse what I did, and ended up with and ELM architecture, but now the UI don't run in separate thread.
+
+## Part 4 again. Connecting the thing
+
+With now full control over my fiber poll, I was able to create different threads for the display and the communication. The only issus that I have is that the `Term.event` from `Notty` which listen to user event is blocking which lead to different issue.
+I was able to get almost everything works, the only weird behavior is that once I send a message, the acknoledgment will only appears after a new term event... This doesn't impact functionality per se but definitely damage user experience, so I want to fix it at some point. I have several idea to try but right now I would rather focus on improving the UI.

@@ -2,6 +2,7 @@ module Msg = Msg
 open Notty
 open Notty_unix
 
+
 (* Type return by Term.event, not present in the lib *)
 type term_event =
   [ `End
@@ -9,6 +10,19 @@ type term_event =
   | `Mouse of Unescape.mouse
   | `Paste of Unescape.paste
   | `Resize of int * int]
+
+let pp_term_event ppf = function
+  | `End -> Format.fprintf ppf "End"
+  | `Key (`Escape, []) -> Format.fprintf ppf "Key Escape"
+  | `Key (`Enter, []) -> Format.fprintf ppf "Key Escape"
+  | `Key _key -> Format.fprintf ppf "Key"
+  | `Mouse _mouse -> Format.fprintf ppf "Mouse"
+  | `Paste _paste -> Format.fprintf ppf "Paste"
+  | `Resize (w,h) -> Format.fprintf ppf "Resize (%d,%d)" w h
+
+type event = [ `Ingress of string | `Term of term_event ] [@@deriving show]
+
+let () = ignore pp_event
 
 
 (* The intent is for the update function to communicate with the main loop (i.e. exit the app or continue) *)
@@ -58,17 +72,19 @@ let initModel : model = {
   messages = [];
 }
 
-let update write (event : term_event) model =
+let update writer (event : event) model =
   match event with
-  | `Key (`Escape, []) -> (model, Command.Quit)
-  | `Key (`Enter, []) ->
+  | `Ingress line ->
+    let messages = line :: model.messages in
+    ({model with messages}, Command.Noop)
+  | `Term (`Key (`Escape, _)) -> (model, Command.Quit)
+  | `Term (`Key (`Enter, [])) ->
     let text = Text_input.current_text model.textInput in
-    Eio.Buf_write.string write (text ^ "\n");
-    Eio.Fiber.yield ();
+    let () = writer text in
     let messages = text :: model.messages in
     let textInput = Text_input.set_text "" model.textInput in
     ({messages; textInput}, Command.Noop)
-  | _ ->
+  | `Term event ->
     let textInput = Text_input.update model.textInput event in
     ({model with textInput}, Command.Noop)
 
@@ -78,26 +94,63 @@ let view model : image =
   <->
   List.fold_right (fun message acc -> acc <-> I.string A.empty message) model.messages I.empty
   <->
-  I.string A.empty "Type your message and press Enter to send it"
+  I.string A.empty "Type your message and press Enter to send it (Escape to quit) :"
   <->
   Text_input.view model.textInput
 
-let main_loop ~update ~view initModel initAction t =
-  let rec loop (model,action) t =
-  match action with
-  | Command.Quit -> ()
-  | Command.Noop ->
-    let img = view model in
-    Term.image t img;
-    let event = Term.event t in
-    let next_step = update event model in
+
+let main_loop read clock ~update ~view initModel initAction t =
+  let event_queue : event Eio.Stream.t = Eio.Stream.create 100 in
+  let rec ui_loop (model,action) t () : unit =
+    (* Create and refresh the screen *)
+    Term.image t @@ view model;
     Eio.Fiber.yield ();
-    loop next_step t
-  in loop (initModel,initAction) t
+    match action with
+    | Command.Quit -> ()
+    | Command.Noop ->
+      (* Wait for an event *)
+      let event = Eio.Stream.take event_queue in
+      (* Add debug information *)
+      (* let model = {model with messages = Format.asprintf "Debug: event received: %a" pp_event event :: model.messages} in *)
+      let next_step = update event model in
+      ui_loop next_step t ()
+  in
+  let term_event_loop t () =
+    let rec aux () =
+      Eio.Fiber.yield();
+      (* Timeout to release the thread if there is no event*)
+      Eio.Fiber.first
+      (fun () -> Eio.Time.sleep clock 0.01 )
+      (
+        fun () ->
+        let event = Term.event t in
+        Eio.Stream.add event_queue (`Term event)
+      );
+      aux ()
+    in
+    aux ()
+  in
+  let rec read_loop () =
+    Eio.Fiber.yield();
+    Eio.Fiber.first (
+      fun () -> Eio.Time.sleep clock 0.01
+    )( fun () ->
+      let line = Eio.Buf_read.line read in
+        Eio.Stream.add event_queue (`Ingress line)
+        );
+    read_loop ()
+  in
+  Eio.Fiber.all [
+  (ui_loop (initModel,initAction) t);
+  (term_event_loop t);
+  read_loop
+  ]
 
 
-let start write () =
-  let t = Term.create () in
-  let update = update write in
-  main_loop ~update ~view initModel Command.Noop t
+
+let start ~sw:_ ~clock read ~writer () =
+  let t = Term.create ~nosig:false () in
+  let update = update writer in
+  let () = main_loop read clock ~update ~view initModel Command.Noop t in
+  Term.release t
 
