@@ -51,3 +51,4 @@ Looking further into the implementation on Minttea, it uses the `Riot` lib for h
 
 ## Part 3 again. User interface (Notty)
 
+This part was actually quite straightforward. I reimplemented the main_loop and ended_up with a similar API so I could reuse what I did, and ended up with and ELM architecture, but now the UI don't run in separate thread.

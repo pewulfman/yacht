@@ -31,7 +31,8 @@ module Text_input = struct
     | `Key (`Backspace, []) -> String.sub t 0 (String.length t - 1)
     | _ -> t
 
-  let view t = t
+  let view t : image =
+    I.string A.empty t
 end
 
 type message = {
@@ -69,37 +70,24 @@ let update (event : term_event) model =
     ({model with textInput}, Command.Noop)
 
 let view model : image =
-  I.string A.empty @@
-  Format.asprintf {|
-Your friends are saying :
-%a
-What do you want to say today ?
-%s
-|}
-  (Format.pp_print_list ~pp_sep:(Format.pp_print_newline) Format.pp_print_string ) model.messages
+  let open I in
+  I.string A.empty "Enter your message"
+  <->
   (Text_input.view model.textInput)
 
-let main_loop t ~init ~(update: term_event -> model -> model * Command.t) ~view ()  =
-  Eio.traceln "Starting the main loop";
-  Eio.traceln "Term created";
-  let rec loop model =
-    Eio.traceln "Looping";
+let main_loop ~update ~view initModel initAction t =
+  let rec loop (model,action) t =
+  match action with
+  | Command.Quit -> ()
+  | Command.Noop ->
     let img = view model in
     Term.image t img;
-    match Term.event t with
-    | `End -> ()
-    | event ->
-      let model, command = update event model in
-      match command with
-      | Command.Quit -> ()
-      | Command.Noop -> loop model
-  in
-  loop init
-
+    let next_step = update (Term.event t) model in
+    loop next_step t
+  in loop (initModel,initAction) t
 
 
 let start () =
-  Eio.traceln "Starting the app";
   let t = Term.create () in
-  main_loop t ~init:initModel ~update ~view ()
+  main_loop ~update ~view initModel Command.Noop t
 
