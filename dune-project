@@ -24,7 +24,9 @@
   eio
   eio_main
   notty
+  yojson
   ppx_deriving
+  ppx_deriving_yojson
   ppx_inline_test)
  (tags
   (ocaml5 chat)))

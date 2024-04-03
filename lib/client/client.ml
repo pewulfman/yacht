@@ -23,15 +23,16 @@ module Msg = Chat.Msg
 
 
 let session ~sw ~clock socket =
-  let writer string =
+  let writer ({id; author; content; _} : Chat.Message.t) =
+    let msg : Msg.t = Data {id; author; content} in
     let write_fiber = fun () ->
     Buf_write.with_flow socket @@ fun socket ->
-      Buf_write.string socket (string ^ "\n");
+      Msg.write socket msg
     in
     Eio.Fiber.fork ~sw write_fiber
   in
   let read = Buf_read.of_flow ~max_size:max_int socket in
-  Chat.start ~sw ~clock read ~writer ()
+  Chat.start ~username:"client" ~sw ~clock read ~writer ()
 
 
 let run_eio host port env : unit =

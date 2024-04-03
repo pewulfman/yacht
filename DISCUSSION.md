@@ -57,3 +57,12 @@ This part was actually quite straightforward. I reimplemented the main_loop and 
 
 With now full control over my fiber poll, I was able to create different threads for the display and the communication. The only issus that I have is that the `Term.event` from `Notty` which listen to user event is blocking which lead to different issue.
 I was able to get almost everything works, the only weird behavior is that once I send a message, the acknoledgment will only appears after a new term event... This doesn't impact functionality per se but definitely damage user experience, so I want to fix it at some point. I have several idea to try but right now I would rather focus on improving the UI.
+
+## Part 5. Implement the message protocol
+
+Now that I have something somewhat working, sending a simple string and receiving a simple string, let make the chat a custom protocol.
+We already somewhat did it in part 2, so that should be quite straightforward
+
+I improved my message serialization leveraging yojson and I obtained what I wanted. the messages turns green after being acknoledge.
+
+Still have the same weird blocking of the screen from the notty term, as expected

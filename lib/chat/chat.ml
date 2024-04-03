@@ -20,9 +20,6 @@ let pp_term_event ppf = function
   | `Paste _paste -> Format.fprintf ppf "Paste"
   | `Resize (w,h) -> Format.fprintf ppf "Resize (%d,%d)" w h
 
-type event = [ `Ingress of string | `Term of term_event ] [@@deriving show]
-
-let () = ignore pp_event
 
 
 (* The intent is for the update function to communicate with the main loop (i.e. exit the app or continue) *)
@@ -50,40 +47,71 @@ module Text_input = struct
     I.string A.empty t <|> I.string A.(bg lightblue) " "
 end
 
-type message = {
-  author: string;
-  content : string;
-  received : bool;
-}
+module Message = struct
+  (* make authomaticaly generate a new id *)
+  let id = ref 0
 
-let _pp_message : Format.formatter -> message -> unit = fun ppf {author; content; received; _} ->
-  if received then
-    Format.fprintf ppf "%s : %s ✅" author content
-  else
-  Format.fprintf ppf "%s : %s" author content
+  type t = {
+    id : int;
+    author: string;
+    content : string;
+    received : bool;
+  } [@@ deriving show]
 
+  let make author content : t =
+    id := !id + 1;
+    let id = !id in
+    { id; author; content; received=false}
+
+end
+
+module History = struct
+  type t = Message.t list
+
+  let add t msg = msg :: t
+  let ack (t : t) id = List.map (fun (msg : Message.t) -> if msg.id = id then {msg with received = true} else msg) t
+
+  let view (t :t) : image =
+    let open I in
+    let view_message ({author; content; received; _} : Message.t) : image =
+      let text = Format.asprintf "%s say: %s" author content in
+      let color = if received then A.green else A.black in
+      I.string A.(bg color) text
+    in
+    List.fold_right (fun message acc -> acc <-> view_message message) t I.empty
+end
+
+type event = [ `Message of Message.t | `Ack of int | `Term of term_event ] [@@deriving show]
+
+let () = ignore pp_event
 type model = {
   textInput : Text_input.t;
-  messages : string list;
+  messages : History.t;
+  username : string;
 }
 
-let initModel : model = {
+let initModel username : model = {
   textInput = Text_input.make "" ();
   messages = [];
+  username;
 }
 
 let update writer (event : event) model =
   match event with
-  | `Ingress line ->
-    let messages = line :: model.messages in
+  | `Message msg ->
+    let messages = History.add model.messages msg in
+    ({model with messages}, Command.Noop)
+  | `Ack id ->
+    let messages = History.ack model.messages id in
     ({model with messages}, Command.Noop)
   | `Term (`Key (`Escape, _)) -> (model, Command.Quit)
   | `Term (`Key (`Enter, [])) ->
     let text = Text_input.current_text model.textInput in
-    let () = writer text in
-    let messages = text :: model.messages in
+    let message = Message.make model.username text in
+    let () = writer message in
+    let messages = History.add model.messages message in
     let textInput = Text_input.set_text "" model.textInput in
-    ({messages; textInput}, Command.Noop)
+    ({model with messages; textInput}, Command.Noop)
   | `Term event ->
     let textInput = Text_input.update model.textInput event in
     ({model with textInput}, Command.Noop)
@@ -92,7 +120,7 @@ let view model : image =
   let open I in
   I.string A.empty "Messages history :"
   <->
-  List.fold_right (fun message acc -> acc <-> I.string A.empty message) model.messages I.empty
+  History.view model.messages
   <->
   I.string A.empty "Type your message and press Enter to send it (Escape to quit) :"
   <->
@@ -135,8 +163,12 @@ let main_loop read clock ~update ~view initModel initAction t =
     Eio.Fiber.first (
       fun () -> Eio.Time.sleep clock 0.01
     )( fun () ->
-      let line = Eio.Buf_read.line read in
-        Eio.Stream.add event_queue (`Ingress line)
+        let msg : Msg.t = Msg.parse read in
+        match msg with
+          Ack id ->
+            Eio.Stream.add event_queue (`Ack id)
+        | Data {author; content; id} ->
+            Eio.Stream.add event_queue (`Message {id;author;content; received=true})
         );
     read_loop ()
   in
@@ -148,9 +180,9 @@ let main_loop read clock ~update ~view initModel initAction t =
 
 
 
-let start ~sw:_ ~clock read ~writer () =
+let start ?(username = "Toto#" ^ (string_of_int @@ Random.int 12345 )) ~sw:_ ~clock read ~writer () =
   let t = Term.create ~nosig:false () in
   let update = update writer in
-  let () = main_loop read clock ~update ~view initModel Command.Noop t in
+  let () = main_loop read clock ~update ~view (initModel username) Command.Noop t in
   Term.release t
 

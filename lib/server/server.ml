@@ -9,12 +9,13 @@ let handle_connect : _ Net.connection_handler = fun socket stream ->
   let buf = Buf_read.of_flow ~max_size:max_int socket in
   let rec loop () =
     traceln "Waiting for message";
-    let msg = Buf_read.line buf in
-    traceln "Got message : %s" msg;
+    let msg = Msg.parse buf in
+    traceln "Got message : %a" Msg.pp msg;
+    let id = match msg with Ack id | Data {id;_} -> id in
     let () = Buf_write.with_flow socket @@ fun write ->
-      let message = "received\n" in
-      traceln "Sending message : %s" message;
-      Buf_write.string write message;
+      let ack = Msg.Ack (id) in
+      traceln "Sending message : %a" Msg.pp ack ;
+      Msg.write write ack;
     in
     traceln "Looping";
     loop () in
