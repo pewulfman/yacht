@@ -1,6 +1,7 @@
 open Eio
 
-type payload = {author:string;content:string; id:int} [@@deriving yojson, show]
+
+type payload = {author:bytes;content:bytes; id:int} [@@deriving yojson, show]
 type t = Ack of int | Data of payload [@@deriving yojson, show]
 
 

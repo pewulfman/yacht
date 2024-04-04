@@ -203,6 +203,8 @@ let main_loop read clock ~update ~view initModel initAction t =
           Ack id ->
             Eio.Stream.add event_queue (`Ack id)
         | Data {author; content; id} ->
+            let author = Bytes.to_string author in
+            let content = Bytes.to_string content in
             Eio.Stream.add event_queue (`Message {id;author;content; received=true})
         );
     read_loop ()

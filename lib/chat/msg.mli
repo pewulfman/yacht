@@ -1,4 +1,4 @@
-type payload = {author:string;content:string; id:int}
+type payload = {author:bytes;content:bytes; id:int}
 type t = Ack of int | Data of payload
 
 val parse : t Eio.Buf_read.parser

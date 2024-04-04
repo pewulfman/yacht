@@ -24,6 +24,8 @@ module Msg = Chat.Msg
 
 let session ~sw ~clock socket =
   let writer ({id; author; content; _} : Chat.Message.t) =
+    let author = Bytes.of_string author in
+    let content = Bytes.of_string content in
     let msg : Msg.t = Data {id; author; content} in
     let write_fiber = fun () ->
     Buf_write.with_flow socket @@ fun socket ->
