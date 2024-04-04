@@ -66,3 +66,8 @@ We already somewhat did it in part 2, so that should be quite straightforward
 I improved my message serialization leveraging yojson and I obtained what I wanted. the messages turns green after being acknoledge.
 
 Still have the same weird blocking of the screen from the notty term, as expected
+
+## Part 6. Make a nicer interface
+
+Taking inspiration from [https://github.com/cedlemo/OCaml-Notty-introduction?tab=readme-ov-file#the-unix-term-module](), I made it so the input is always at the bottom and the center view with the chat history is contained and scrollable.
+The current implementation is incomplete has I don't handle the user scrolling to far up the history (line disappears instead of cursor being blocked, reapears when scrolling in the other direction) but this is good enough given the objective of this task. may work on that later.

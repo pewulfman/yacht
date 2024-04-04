@@ -20,6 +20,7 @@
  (depends
   ocaml
   dune
+  containers
   cmdliner
   eio
   eio_main
