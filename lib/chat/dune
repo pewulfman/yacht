@@ -1,5 +1,5 @@
 (library
  (name chat)
- (libraries containers eio notty notty.unix yojson)
+ (libraries containers eio notty notty.lwt lwt_eio)
  (preprocess
-  (pps ppx_deriving.enum ppx_deriving.show ppx_deriving_yojson)))
+  (pps ppx_deriving.enum ppx_deriving.show)))

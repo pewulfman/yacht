@@ -1,13 +1,11 @@
-module Msg = Msg
 module List = Containers.List
 open Notty
-open Notty_unix
+open Notty_lwt
 
 
 (* Type return by Term.event, not present in the lib *)
 type term_event =
-  [ `End
-  | `Key of Unescape.key
+  [ `Key of Unescape.key
   | `Mouse of Unescape.mouse
   | `Paste of Unescape.paste
   | `Resize of int * int]
@@ -85,8 +83,8 @@ module History = struct
 end
 
 type event = [ `Message of Message.t | `Ack of int | `Term of term_event ] [@@deriving show]
-
 let () = ignore pp_event
+
 type model = {
   textInput : Text_input.t;
   messages : History.t;
@@ -101,7 +99,7 @@ let initModel username : model = {
   pos = 0;
 }
 
-let update writer (event : event) model =
+let update output_stream (event : event) model =
   match event with
   | `Message msg ->
     let messages = History.add model.messages msg in
@@ -120,7 +118,8 @@ let update writer (event : event) model =
   | `Term (`Key (`Enter, [])) ->
     let text = Text_input.current_text model.textInput in
     let message = Message.make model.username text in
-    let () = writer message in
+    let () =
+     Eio.Stream.add output_stream message in
     let messages = History.add model.messages message in
     let textInput = Text_input.set_text "" model.textInput in
     ({model with messages; textInput}, Command.Noop)
@@ -162,64 +161,58 @@ let view model (w,h) : image =
   input_box
 
 
-let main_loop read clock ~update ~view initModel initAction t =
-  let event_queue : event Eio.Stream.t = Eio.Stream.create 100 in
-  let rec ui_loop (model,action) t () : unit =
+let main_loop event_stream ~update ~view initModel initAction t : unit Lwt.t =
+  let open Lwt.Syntax in
+  let rec ui_loop (model,action) t () : unit Lwt.t =
     (* Create and refresh the screen *)
-    Term.image t @@ view model (Term.size t);
-    Eio.Fiber.yield ();
+    let* () = Term.image t @@ view model (Term.size t) in
     match action with
-    | Command.Quit -> ()
+    | Command.Quit -> Lwt.return_unit
     | Command.Noop ->
       (* Wait for an event *)
-      let event = Eio.Stream.take event_queue in
-      (* Add debug information *)
-      (* let model = {model with messages = Format.asprintf "Debug: event received: %a" pp_event event :: model.messages} in *)
+      let* event = Lwt_stream.get @@ event_stream in
+      match event with
+      | None ->
+        Lwt.return_unit
+      | Some event ->
+        (* let model = {model with messages = {id=0;author="debug";content=Format.asprintf "Debug: event received: %a" pp_event event;received=true} :: model.messages} in *)
       let next_step = update event model in
       ui_loop next_step t ()
   in
-  let term_event_loop t () =
-    let rec aux () =
-      Eio.Fiber.yield();
-      (* Timeout to release the thread if there is no event*)
-      Eio.Fiber.first
-      (fun () -> Eio.Time.sleep clock 0.01 )
-      (
-        fun () ->
-        let event = Term.event t in
-        Eio.Stream.add event_queue (`Term event)
-      );
+    ui_loop (initModel,initAction) t ()
+
+
+
+let start_lwt ~username ~input_stream ~output_stream () : unit Lwt.t =
+  let open Lwt.Syntax in
+  let t = Term.create () in
+  let update = update output_stream in
+  let (event_stream, push_to_event_stream) = Lwt_stream.create () in
+  let ui_loop () = main_loop event_stream ~update ~view (initModel username) Command.Noop t in
+  let term_event_loop t () : unit Lwt.t =
+    let rec aux ()  =
+      let events = Term.events t in
+      let* event = Lwt_stream.get events in
+      let event = Option.map (fun e -> `Term e) event in
+      push_to_event_stream event;
       aux ()
     in
     aux ()
   in
-  let rec read_loop () =
-    Eio.Fiber.yield();
-    Eio.Fiber.first (
-      fun () -> Eio.Time.sleep clock 0.01
-    )( fun () ->
-        let msg : Msg.t = Msg.parse read in
-        match msg with
-          Ack id ->
-            Eio.Stream.add event_queue (`Ack id)
-        | Data {author; content; id} ->
-            let author = Bytes.to_string author in
-            let content = Bytes.to_string content in
-            Eio.Stream.add event_queue (`Message {id;author;content; received=true})
-        );
+  let rec read_loop () : unit Lwt.t =
+    let* message =
+      Lwt_eio.run_eio @@ fun () ->
+      Eio.Stream.take input_stream in
+    let () = push_to_event_stream (Some message) in
     read_loop ()
   in
-  Eio.Fiber.all [
-  (ui_loop (initModel,initAction) t);
-  (term_event_loop t);
-  read_loop
-  ]
-
-
-
-let start ?(username = "Toto#" ^ (string_of_int @@ Random.int 12345 )) ~sw:_ ~clock read ~writer () =
-  let t = Term.create ~nosig:false () in
-  let update = update writer in
-  let () = main_loop read clock ~update ~view (initModel username) Command.Noop t in
+  let _ = term_event_loop t () in
+  let _ = read_loop () in
+  let* () = ui_loop () in
   Term.release t
 
+
+
+let start ?(username = "Toto#" ^ (string_of_int @@ Random.int 12345 )) ~clock ~input_stream ~output_stream () : unit =
+  Lwt_eio.with_event_loop ~clock @@ fun _ ->
+    Lwt_eio.run_lwt @@ start_lwt ~username ~input_stream ~output_stream

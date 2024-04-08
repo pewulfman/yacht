@@ -17,4 +17,3 @@ let write flow t =
   let len = String.length data in
     Buf_write.BE.uint16 flow len;
     Buf_write.string flow data
-

@@ -1,0 +1,1 @@
+module Msg = Msg

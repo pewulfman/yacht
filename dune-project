@@ -24,6 +24,8 @@
   cmdliner
   eio
   eio_main
+  lwt_eio
+  lwt
   notty
   yojson
   ppx_deriving

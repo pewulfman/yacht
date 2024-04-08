@@ -1,5 +1,5 @@
 open Eio
-module Msg = Chat.Msg
+module Msg = Common.Msg
 
 
 let handle_connect : _ Net.connection_handler = fun socket stream ->

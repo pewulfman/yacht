@@ -1,5 +1,5 @@
 open Eio
-module Msg = Chat.Msg
+module Msg = Common.Msg
 
 
 
@@ -22,19 +22,47 @@ module Msg = Chat.Msg
   in loop () *)
 
 
-let session ~sw ~clock socket =
-  let writer ({id; author; content; _} : Chat.Message.t) =
-    let author = Bytes.of_string author in
-    let content = Bytes.of_string content in
-    let msg : Msg.t = Data {id; author; content} in
-    let write_fiber = fun () ->
+let session ~sw ~clock socket : unit =
+  let input_stream = Stream.create 100 in
+  let output_stream = Stream.create 100 in
+  let sender_stream = Stream.create 100 in
+  let rec forward_chat_message () =
+      let {id; author; content; _} : Chat.Message.t = Stream.take output_stream in
+      let author = Bytes.of_string author in
+      let content = Bytes.of_string content in
+      let msg : Msg.t = Data {id; author; content} in
+      let () = Stream.add sender_stream msg in
+      forward_chat_message ()
+  in
+  let outgoing_writer () =
     Buf_write.with_flow socket @@ fun socket ->
-      Msg.write socket msg
-    in
-    Eio.Fiber.fork ~sw write_fiber
+    let rec loop () =
+      let msg = Stream.take sender_stream in
+      let () = Msg.write socket msg in
+      loop ()
+    in loop ()
   in
   let read = Buf_read.of_flow ~max_size:max_int socket in
-  Chat.start ~username:"client" ~sw ~clock read ~writer ()
+  let rec incoming_listener () =
+    Eio.Fiber.first (
+      fun () -> Eio.Time.sleep clock 0.01
+    )( fun () ->
+        let msg : Msg.t = Msg.parse read in
+        match msg with
+          Ack id ->
+            Eio.Stream.add input_stream (`Ack id)
+        | Data {author; content; id} ->
+            let author = Bytes.to_string author in
+            let content = Bytes.to_string content in
+            Eio.Stream.add input_stream (`Message ({id;author;content; received=true} : Chat.Message.t));
+            Eio.Stream.add sender_stream (Ack id)
+        );
+    incoming_listener ()
+  in
+  Fiber.fork_daemon ~sw incoming_listener;
+  Fiber.fork_daemon ~sw outgoing_writer;
+  Fiber.fork_daemon ~sw forward_chat_message;
+  Chat.start ~username:"client" ~clock ~input_stream ~output_stream ()
 
 
 let run_eio host port env : unit =
