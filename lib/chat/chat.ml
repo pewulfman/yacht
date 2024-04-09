@@ -50,17 +50,25 @@ module Message = struct
   (* make authomaticaly generate a new id *)
   let id = ref 0
 
-  type t = {
+  type t =
+  | Mine of {
     id : int;
     author: string;
     content : string;
-    received : bool;
-  } [@@ deriving show]
+    sent_at : float;
+    ack_recv_at : float option;
+  }
+  | Others of {
+    author: string;
+    content: string;
+  }
+  [@@ deriving show]
 
-  let make author content : t =
+  let make clock author content : t =
     id := !id + 1;
     let id = !id in
-    { id; author; content; received=false}
+    let sent_at = Eio.Time.now clock in
+    Mine {id; author; content; sent_at; ack_recv_at=None}
 
 end
 
@@ -68,14 +76,28 @@ module History = struct
   type t = Message.t list
 
   let add t msg = msg :: t
-  let ack (t : t) id = List.map (fun (msg : Message.t) -> if msg.id = id then {msg with received = true} else msg) t
+  let ack clock (t : t) id = List.map (fun (msg : Message.t) ->
+    match msg with
+    | Mine msg when msg.id = id
+      -> Message.Mine {msg with ack_recv_at = Eio.Time.now clock |> Option.some}
+    | _ -> msg
+   ) t
 
-  let view ?(pos=0) (t :t) : image =
+  let view ?(pos=0) w (t :t) : image =
     let open I in
-    let view_message ({author; content; received; _} : Message.t) : image =
+    let view_message = function
+    | Message.Mine {id=_; author; content; sent_at; ack_recv_at} ->
+      (let text = Format.asprintf "%s say: %s" author content in
+      let text_image = I.string A.empty text in
+      let image : I.t = match ack_recv_at with
+        | Some (recv_at) -> text_image <|> I.string A.empty (Format.asprintf " || ack time : %a s" Format.pp_print_float (Float.sub recv_at sent_at))
+        | None -> text_image
+      in
+      I.hpad (w - I.width image -2) 0 image
+      )
+    | Message.Others {author; content} ->
       let text = Format.asprintf "%s say: %s" author content in
-      let color = if received then A.green else A.black in
-      I.string A.(bg color) text
+      I.string A.(bg black) text
     in
     let sub_list = List.drop pos t in
     List.fold_right (fun message acc -> acc <-> view_message message) sub_list I.empty
@@ -99,13 +121,13 @@ let initModel username : model = {
   pos = 0;
 }
 
-let update output_stream (event : event) model =
+let update clock output_stream (event : event) model =
   match event with
   | `Message msg ->
     let messages = History.add model.messages msg in
     ({model with messages}, Command.Noop)
   | `Ack id ->
-    let messages = History.ack model.messages id in
+    let messages = History.ack clock model.messages id in
     ({model with messages}, Command.Noop)
   | `Term (`Key (`Escape, _)) -> (model, Command.Quit)
   | `Term (`Key (`Arrow `Up, _)) ->
@@ -117,7 +139,7 @@ let update output_stream (event : event) model =
       ({model with pos}, Command.Noop)
   | `Term (`Key (`Enter, [])) ->
     let text = Text_input.current_text model.textInput in
-    let message = Message.make model.username text in
+    let message = Message.make clock model.username text in
     let () =
      Eio.Stream.add output_stream message in
     let messages = History.add model.messages message in
@@ -146,7 +168,7 @@ let view model (w,h) : image =
   let history_backgroud = (outline A.(fg lightred ) (w,h-input_box_h)) in
   let history =
     let header = I.string A.empty "Messages history :" in
-    let view = History.view model.messages ~pos:model.pos in
+    let view = History.view w model.messages ~pos:model.pos in
     let sized_view =
       let view_h = I.height view in
       let max_height = h - input_box_h - I.height header in
@@ -183,10 +205,10 @@ let main_loop event_stream ~update ~view initModel initAction t : unit Lwt.t =
 
 
 
-let start_lwt ~username ~input_stream ~output_stream () : unit Lwt.t =
+let start_lwt ~clock ~username ~input_stream ~output_stream () : unit Lwt.t =
   let open Lwt.Syntax in
   let t = Term.create () in
-  let update = update output_stream in
+  let update = update clock output_stream in
   let (event_stream, push_to_event_stream) = Lwt_stream.create () in
   let ui_loop () = main_loop event_stream ~update ~view (initModel username) Command.Noop t in
   let term_event_loop t () : unit Lwt.t =
@@ -215,4 +237,4 @@ let start_lwt ~username ~input_stream ~output_stream () : unit Lwt.t =
 
 let start ?(username = "Toto#" ^ (string_of_int @@ Random.int 12345 )) ~clock ~input_stream ~output_stream () : unit =
   Lwt_eio.with_event_loop ~clock @@ fun _ ->
-    Lwt_eio.run_lwt @@ start_lwt ~username ~input_stream ~output_stream
+    Lwt_eio.run_lwt @@ start_lwt ~clock ~username ~input_stream ~output_stream

@@ -1,10 +1,16 @@
 module Message : sig
-  type t = {
+  type t =
+  | Mine of {
     id : int;
     author: string;
     content : string;
-    received : bool;
-  } [@@ deriving show]
+    sent_at : float;
+    ack_recv_at : float option;
+  }
+  | Others of {
+    author: string;
+    content: string;
+  }
 end
 
 type term_event

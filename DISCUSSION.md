@@ -84,3 +84,18 @@ I use `_ Eio.Steam.t` for the stream. The issue with this is that it makes the c
 By giving a closer look into the `term_event_loop`, I realized that my timeout didn't stop the `Term.event` from Notty_unix to block everything. (Because the thread that should timeout was also blocked, of course). So I realize the solution was to use Notty_lwt instead, which I didn't want to do initially as I wanted to work with pure `Eio` without `Lwt`. I can port `Notty_lwt` to `Notty_eio`, which i'll try after that, but here I use `Notty_lwt` and `Lwt_eio` to integrate with the rest of the application.
 
 I had to make a few refactoring to make the chat module mostly a `Lwt` module but now, it works has I intended.
+
+## Part 8. Try a conversation between the client and the server
+
+So far, I have been tested with the client spawning a chat and the server simply logging incoming messages and sending back an Ack.
+In the final app, the server will also spawn the same chat app than the client. This should work by calling the same session from the server
+
+Without surprise, it works. But closing one session triggers an error on the other one. We need to do something to close the app gracefully
+
+As I failed to find a solution and I am waiting for a response to my question on OCaml help's channel, I pause this and move to the next task.
+
+## Part 9. Display the roundtrip time of messages
+
+To do this, I had to modify the type of `Message` in `Chat` to store the time at which the message was sent and at which time the message was received by the chat.
+
+I also made the type into a variant to differentiate better between message that was written locally and those received. This make it a bit easier to handle and to display each differently.
