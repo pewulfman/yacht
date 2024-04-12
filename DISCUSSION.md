@@ -103,3 +103,9 @@ I also made the type into a variant to differentiate better between message that
 ## Part 7-bis Notty_eio
 
 While googling on Eio for understanding why I get an exception. I ended up on this project [https://gitlab.com/talex5/gemini-eio]() which implement a eio backend for Notty, so according to the license, I reused it and remove the lwt related code. Having all my concurrency handled by Eio should make it easier to locate the reason for the exception. Already, I get an End_of_File exception where I a suspend exception before
+
+## Part 10. Make the application not crash
+
+Trying out different idea, appear that closing the socket send an EoF which render the flow available for reading but then the parsing fails.
+I can fix that either catching the exception or by first sending a special termination packet.
+I decided for the second so that I can differentiate between the "Happy Path" (the other side close the chat) and the "Sad Path", (the other side send a wrong packet)

@@ -27,23 +27,34 @@ let session ~sw:_ ~username ~clock ~stdin ~stdout socket : unit =
   in
   let rec incoming_listener () =
     let read = Buf_read.of_flow ~max_size:max_int socket in
-    let msg : Msg.t = Msg.parse read in
-        (match msg with
-          Ack id ->
-            Eio.Stream.add input_stream (`Ack id)
-        | Data {author; content; id} ->
-            let author = Bytes.to_string author in
-            let content = Bytes.to_string content in
-            Eio.Stream.add input_stream (`Message (Others {author;content} : Chat.Message.t));
-            Eio.Stream.add sender_stream (Ack id));
-    incoming_listener ()
+    match Msg.parse read with
+    | Ok (Ack id) ->
+      Eio.Stream.add input_stream (`Ack id);
+      incoming_listener ()
+    | Ok (Data {author; content; id}) ->
+      let author = Bytes.to_string author in
+      let content = Bytes.to_string content in
+      Eio.Stream.add input_stream (`Message (Others {author;content} : Chat.Message.t));
+      Eio.Stream.add sender_stream (Ack id);
+      incoming_listener ()
+    | Ok (End) ->
+      traceln "ending com";
+      ()
+    | Error (`End_of_file) ->
+      traceln "end of file";
+      ()
+    | Error (`Parse_error err) ->
+      traceln "error: %s" err;
+      ()
   in
+  let chat () = Chat.start ~username ~clock ~stdin ~stdout ~input_stream ~output_stream () in
   let () = Fiber.any [
-    Chat.start ~username ~clock ~stdin ~stdout ~input_stream ~output_stream;
+    chat;
     incoming_listener;
     outgoing_writer;
     forward_chat_message;
   ] in
-  Eio.Flow.shutdown socket `All;
-  Eio.Flow.close socket
+  (* Send termination message *)
+  Net.close socket;
+  ()
 
