@@ -1,0 +1,3 @@
+(library
+ (name notty_eio)
+ (libraries eio eio.unix notty notty.unix))

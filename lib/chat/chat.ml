@@ -1,6 +1,6 @@
 module List = Containers.List
 open Notty
-open Notty_lwt
+open Notty_eio
 
 
 (* Type return by Term.event, not present in the lib *)
@@ -8,16 +8,16 @@ type term_event =
   [ `Key of Unescape.key
   | `Mouse of Unescape.mouse
   | `Paste of Unescape.paste
-  | `Resize of int * int]
+  | `Resize ]
 
 let pp_term_event ppf = function
   | `End -> Format.fprintf ppf "End"
   | `Key (`Escape, []) -> Format.fprintf ppf "Key Escape"
-  | `Key (`Enter, []) -> Format.fprintf ppf "Key Escape"
+  | `Key (`Enter, []) -> Format.fprintf ppf "Key Enter"
   | `Key _key -> Format.fprintf ppf "Key"
   | `Mouse _mouse -> Format.fprintf ppf "Mouse"
   | `Paste _paste -> Format.fprintf ppf "Paste"
-  | `Resize (w,h) -> Format.fprintf ppf "Resize (%d,%d)" w h
+  | `Resize -> Format.fprintf ppf "Resize"
 
 
 
@@ -183,20 +183,15 @@ let view model (w,h) : image =
   input_box
 
 
-let main_loop event_stream ~update ~view initModel initAction t : unit Lwt.t =
-  let open Lwt.Syntax in
-  let rec ui_loop (model,action) t () : unit Lwt.t =
+let main_loop event_stream ~update ~view initModel initAction t : unit =
+  let rec ui_loop (model,action) t () : unit =
     (* Create and refresh the screen *)
-    let* () = Term.image t @@ view model (Term.size t) in
+    let () = Term.image t @@ view model (Term.size t) in
     match action with
-    | Command.Quit -> Lwt.return_unit
+    | Command.Quit -> ()
     | Command.Noop ->
       (* Wait for an event *)
-      let* event = Lwt_stream.get @@ event_stream in
-      match event with
-      | None ->
-        Lwt.return_unit
-      | Some event ->
+      let event = Eio.Stream.take event_stream in
         (* let model = {model with messages = {id=0;author="debug";content=Format.asprintf "Debug: event received: %a" pp_event event;received=true} :: model.messages} in *)
       let next_step = update event model in
       ui_loop next_step t ()
@@ -205,36 +200,15 @@ let main_loop event_stream ~update ~view initModel initAction t : unit Lwt.t =
 
 
 
-let start_lwt ~clock ~username ~input_stream ~output_stream () : unit Lwt.t =
-  let open Lwt.Syntax in
-  let t = Term.create () in
+let start ?(username = "Toto#" ^ (string_of_int @@ Random.int 12345 )) ~clock ~stdin ~stdout ~input_stream ~output_stream () : unit=
   let update = update clock output_stream in
-  let (event_stream, push_to_event_stream) = Lwt_stream.create () in
-  let ui_loop () = main_loop event_stream ~update ~view (initModel username) Command.Noop t in
-  let term_event_loop t () : unit Lwt.t =
-    let rec aux ()  =
-      let events = Term.events t in
-      let* event = Lwt_stream.get events in
-      let event = Option.map (fun e -> `Term e) event in
-      push_to_event_stream event;
-      aux ()
-    in
-    aux ()
-  in
-  let rec read_loop () : unit Lwt.t =
-    let* message =
-      Lwt_eio.run_eio @@ fun () ->
-      Eio.Stream.take input_stream in
-    let () = push_to_event_stream (Some message) in
+  let event_stream = Eio.Stream.create 1 in
+  let ui_loop t = main_loop event_stream ~update ~view (initModel username) Command.Noop t in
+  let on_event event = Eio.Stream.add event_stream (`Term event) in
+  let rec read_loop () : unit =
+    let message = Eio.Stream.take input_stream in
+    let () = Eio.Stream.add event_stream message in
     read_loop ()
   in
-  let _ = term_event_loop t () in
-  let _ = read_loop () in
-  let* () = ui_loop () in
-  Term.release t
-
-
-
-let start ?(username = "Toto#" ^ (string_of_int @@ Random.int 12345 )) ~clock ~input_stream ~output_stream () : unit =
-  Lwt_eio.with_event_loop ~clock @@ fun _ ->
-    Lwt_eio.run_lwt @@ start_lwt ~clock ~username ~input_stream ~output_stream
+  Eio.Fiber.first read_loop
+   @@ fun () -> Term.run ~input:stdin ~output:stdout ~on_event ui_loop

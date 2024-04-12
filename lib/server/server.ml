@@ -2,10 +2,10 @@ open Eio
 module Msg = Common.Msg
 
 
-let handle_connect ~sw ~clock : _ Net.connection_handler = fun socket stream ->
+let handle_connect ~sw ~clock  ~stdin ~stdout : _ Net.connection_handler = fun socket stream ->
   Format.printf "Socket: %a\n" Net.Sockaddr.pp stream ;
   Format.print_flush();
-  Common.session ~sw ~clock ~username:"server" socket
+  Common.session ~sw ~username:"server" ~clock ~stdin ~stdout socket
 
 
 let listening_soket (host : string) (port : int) (net : _ Std.r) =
@@ -22,10 +22,12 @@ let run_eio host port env =
   let () = Printf.printf "Spawning server on %s:%d\n" host port in
   let net = Stdenv.net env in
   let clock = Stdenv.clock env in
+  let stdin = Stdenv.stdin env
+  and stdout = Stdenv.stdout env in
   Switch.run ~name:"server" (fun sw ->
   Net.run_server ~max_connections:1 ~on_error:raise
     (listening_soket host port net ~sw)
-    (handle_connect ~sw ~clock)
+    (handle_connect ~sw ~clock ~stdin ~stdout)
   )
 
 let run host port =

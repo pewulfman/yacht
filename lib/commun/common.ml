@@ -1,7 +1,7 @@
 module Msg = Msg
 open Eio
 
-let session ~sw:_ ~username ~clock socket : unit =
+let session ~sw:_ ~username ~clock ~stdin ~stdout socket : unit =
   let input_stream = Stream.create 100 in
   let output_stream = Stream.create 100 in
   let sender_stream = Stream.create 100 in
@@ -39,7 +39,7 @@ let session ~sw:_ ~username ~clock socket : unit =
     incoming_listener ()
   in
   let () = Fiber.any [
-    Chat.start ~username ~clock ~input_stream ~output_stream;
+    Chat.start ~username ~clock ~stdin ~stdout ~input_stream ~output_stream;
     incoming_listener;
     outgoing_writer;
     forward_chat_message;
