@@ -8,17 +8,12 @@ let handle_connect ~sw ~clock  ~stdin ~stdout : _ Net.connection_handler = fun s
   Common.session ~sw ~username:"server" ~clock ~stdin ~stdout socket
 
 
-let listening_soket (host : string) (port : int) (net : _ Std.r) =
-  (* TODO : host and port sanitation *)
-  let host =
-    if host = "localhost" then
-      Net.Ipaddr.V4.loopback
-    else Net.Ipaddr.of_raw host
-  in
-    Net.listen ~backlog:10 net (`Tcp (host, port))
+let listening_soket (port : int) (net : _ Std.r) =
+  let host = Net.Ipaddr.V4.loopback in
+  Net.listen ~backlog:10 net (`Tcp (host, port))
 
-let run_eio host port env =
-  let () = Printf.printf "Spawning server on %s:%d\n" host port in
+let run_eio port env =
+  let () = Printf.printf "Spawning server on port %d\n" port in
   let net = Stdenv.net env in
   let clock = Stdenv.clock env in
   let stdin = Stdenv.stdin env
@@ -26,7 +21,7 @@ let run_eio host port env =
   Switch.run ~name:"server" (fun sw ->
     try
       Net.run_server ~max_connections:1 ~on_error:raise
-        (listening_soket host port net ~sw)
+        (listening_soket ~sw port net)
         (handle_connect ~sw ~clock ~stdin ~stdout)
       (* Shouldn't raise according to doc *)
     with
@@ -37,5 +32,5 @@ let run_eio host port env =
     | Common.(Exn Terminated_by_Peer) -> Printf.eprintf "Connection terminated by peer\n%!"
   )
 
-let run host port =
-  Eio_main.run (run_eio host port)
+let run port =
+  Eio_main.run (run_eio port)
