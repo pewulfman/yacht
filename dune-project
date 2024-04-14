@@ -1,11 +1,11 @@
 (lang dune 3.14)
 
-(name ahref_exercise)
+(name yacht)
 
 (generate_opam_files true)
 
 (source
- (github pewulfman/ahref_exercise))
+ (github pewulfman/yacht))
 
 (authors "Pierre-Emmanuel Wulfman")
 
@@ -14,7 +14,7 @@
 (license MIT)
 
 (package
- (name ahref_exercise)
+ (name yacht)
  (synopsis "Simple Chat Server and Client in OCaml")
  (description "Simple Chat Server and Client in OCaml")
  (depends

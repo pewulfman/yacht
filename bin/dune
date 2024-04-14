@@ -1,5 +1,5 @@
 (executable
- (public_name ahref_exercise)
+ (public_name yacht)
  (name main)
  (libraries server client cmdliner)
  (preprocess

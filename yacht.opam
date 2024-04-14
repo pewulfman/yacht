@@ -6,8 +6,8 @@ maintainer: ["Pierre-Emmanuel Wulfman"]
 authors: ["Pierre-Emmanuel Wulfman"]
 license: "MIT"
 tags: ["ocaml5" "chat"]
-homepage: "https://github.com/pewulfman/ahref_exercise"
-bug-reports: "https://github.com/pewulfman/ahref_exercise/issues"
+homepage: "https://github.com/pewulfman/yacht"
+bug-reports: "https://github.com/pewulfman/yacht/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.14"}
@@ -15,8 +15,6 @@ depends: [
   "cmdliner"
   "eio"
   "eio_main"
-  "lwt_eio"
-  "lwt"
   "notty"
   "yojson"
   "ppx_deriving"
@@ -38,4 +36,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/pewulfman/ahref_exercise.git"
+dev-repo: "git+https://github.com/pewulfman/yacht.git"

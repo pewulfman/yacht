@@ -1,5 +1,5 @@
 (test
- (name test_ahref_exercise)
+ (name yacht_exercise)
  (libraries cmdliner notty eio)
  (preprocess
   (pps ppx_inline_test)))
