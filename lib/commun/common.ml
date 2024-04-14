@@ -1,6 +1,10 @@
 module Msg = Msg
 open Eio
 
+type err = Terminated_by_Peer | Parse_error of string
+
+exception Exn of err
+
 let session ~sw:_ ~username ~clock ~stdin ~stdout socket : unit =
   let input_stream = Stream.create 100 in
   let output_stream = Stream.create 100 in
@@ -37,24 +41,23 @@ let session ~sw:_ ~username ~clock ~stdin ~stdout socket : unit =
       Eio.Stream.add input_stream (`Message (Others {author;content} : Chat.Message.t));
       Eio.Stream.add sender_stream (Ack id);
       incoming_listener ()
-    | Ok (End) ->
-      traceln "ending com";
-      ()
-    | Error (`End_of_file) ->
-      traceln "end of file";
-      ()
+    | Ok (End) -> ()
+      (* Connection Terminated by peer *)
+    | Error (`End_of_file) -> raise @@ Exn Terminated_by_Peer
     | Error (`Parse_error err) ->
-      traceln "error: %s" err;
-      ()
+      (* Should probably not fail but notify user of the issue so they can resend *)
+      raise @@ Exn (Parse_error err)
   in
-  let chat () = Chat.start ~username ~clock ~stdin ~stdout ~input_stream ~output_stream () in
+  let chat () =
+    let () = Chat.start ~username ~clock ~stdin ~stdout ~input_stream ~output_stream () in
+    (* Send the happy termination packet *)
+    Buf_write.with_flow socket @@ fun socket -> Msg.write socket End
+  in
   let () = Fiber.any [
     chat;
     incoming_listener;
     outgoing_writer;
     forward_chat_message;
   ] in
-  (* Send termination message *)
-  Net.close socket;
   ()
 

@@ -15,8 +15,7 @@ let listening_soket (host : string) (port : int) (net : _ Std.r) =
       Net.Ipaddr.V4.loopback
     else Net.Ipaddr.of_raw host
   in
-  Net.listen ~backlog:10
-  net (`Tcp (host, port))
+    Net.listen ~backlog:10 net (`Tcp (host, port))
 
 let run_eio host port env =
   let () = Printf.printf "Spawning server on %s:%d\n" host port in
@@ -25,9 +24,17 @@ let run_eio host port env =
   let stdin = Stdenv.stdin env
   and stdout = Stdenv.stdout env in
   Switch.run ~name:"server" (fun sw ->
-  Net.run_server ~max_connections:1 ~on_error:raise
-    (listening_soket host port net ~sw)
-    (handle_connect ~sw ~clock ~stdin ~stdout)
+    try
+      Net.run_server ~max_connections:1 ~on_error:raise
+        (listening_soket host port net ~sw)
+        (handle_connect ~sw ~clock ~stdin ~stdout)
+      (* Shouldn't raise according to doc *)
+    with
+    | Invalid_argument s -> Printf.eprintf "Invalid argument: %s\n" s
+    | Unix.Unix_error (Unix.EADDRINUSE, _, _) -> Printf.eprintf "Error: port %d already in use\n" port
+    | Unix.Unix_error (_, _, _) as e -> Format.eprintf "Error: unknown Unix error %a\n" Exn.pp e
+    | Common.(Exn (Parse_error e)) -> Printf.eprintf "Error while parsing incoming message: %s\n%!" e
+    | Common.(Exn Terminated_by_Peer) -> Printf.eprintf "Connection terminated by peer\n%!"
   )
 
 let run host port =

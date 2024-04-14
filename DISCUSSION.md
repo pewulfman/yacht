@@ -109,3 +109,19 @@ While googling on Eio for understanding why I get an exception. I ended up on th
 Trying out different idea, appear that closing the socket send an EoF which render the flow available for reading but then the parsing fails.
 I can fix that either catching the exception or by first sending a special termination packet.
 I decided for the second so that I can differentiate between the "Happy Path" (the other side close the chat) and the "Sad Path", (the other side send a wrong packet)
+
+## Part 11. Take care of exception
+
+This part consist of taking care of the "sad path". I have not perform extensive test of the app over the network to detect all kind of possible exception.
+
+The possible errors for the server are:
+
+1. Those from the function `run_server` which shouldn't append in our design
+1. Unix Error while binding to the socket and the loopback address
+
+The possible errors for the client are:
+
+1. Impossibility to connect because either can't find the server, the server refused, or the request timeout
+
+Then, when communicating, the communication can be lost or another client/server could implement an erroneous or malicious protocol.
+These are reflected by the exception in `common.ml`
