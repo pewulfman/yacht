@@ -85,19 +85,19 @@ module History = struct
 
   let view ?(pos=0) w (t :t) : image =
     let open I in
-    let view_message = function
-    | Message.Mine {id=_; author; content; sent_at; ack_recv_at} ->
-      (let text = Format.asprintf "%s say: %s" author content in
-      let text_image = I.string A.empty text in
-      let image : I.t = match ack_recv_at with
-        | Some (recv_at) -> text_image <|> I.string A.empty (Format.asprintf " || ack time : %a s" Format.pp_print_float (Float.sub recv_at sent_at))
-        | None -> text_image
+    let view_message mess =
+      let text = match mess with
+      | Message.Mine {id=_; author; content; sent_at; ack_recv_at} ->
+        let text = Format.asprintf "%s say: %s" author content in
+        (match ack_recv_at with
+          | Some (recv_at) -> text ^ (Format.asprintf " || ack time : %a s" Format.pp_print_float (Float.sub recv_at sent_at))
+          | None -> text)
+      | Message.Others {author; content} -> Format.asprintf "%s say: %s" author content
       in
-      I.hpad (w - I.width image -2) 0 image
-      )
-    | Message.Others {author; content} ->
-      let text = Format.asprintf "%s say: %s" author content in
-      I.string A.(bg black) text
+      let text_lines = List.sublists_of_len ~last:CCOption.return (w - 2) @@ List.of_seq @@ String.to_seq text in
+      List.fold_left (fun acc line ->
+        let line = String.of_seq @@ List.to_seq line in
+        acc <-> I.string A.empty line) I.empty text_lines
     in
     let sub_list = List.drop pos t in
     List.fold_right (fun message acc -> acc <-> view_message message) sub_list I.empty
