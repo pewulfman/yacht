@@ -5,12 +5,16 @@ module Msg = Common.Msg
 let handle_connect ~sw ~username ~clock  ~stdin ~stdout : _ Net.connection_handler = fun socket stream ->
   Format.printf "Socket: %a\n" Net.Sockaddr.pp stream ;
   Format.print_flush();
-  Common.session ~sw ~username ~clock ~stdin ~stdout socket
+  try
+    Common.session ~sw ~username ~clock ~stdin ~stdout socket
+  with
+    | Common.(Exn (Parse_error e)) -> Printf.eprintf "Error while parsing incoming message: %s\n%!" e
+    | Common.(Exn Terminated_by_Peer) -> Printf.eprintf "Connection terminated by peer\n%!"
 
 
 let listening_soket (port : int) (net : _ Std.r) =
   let host = Net.Ipaddr.V4.loopback in
-  Net.listen ~backlog:10 net (`Tcp (host, port))
+    Net.listen ~backlog:10 net (`Tcp (host, port))
 
 let run_eio port username env =
   let () = Printf.printf "Spawning server on port %d\n" port in
@@ -28,8 +32,6 @@ let run_eio port username env =
     | Invalid_argument s -> Printf.eprintf "Invalid argument: %s\n" s
     | Unix.Unix_error (Unix.EADDRINUSE, _, _) -> Printf.eprintf "Error: port %d already in use\n" port
     | Unix.Unix_error (_, _, _) as e -> Format.eprintf "Error: unknown Unix error %a\n" Exn.pp e
-    | Common.(Exn (Parse_error e)) -> Printf.eprintf "Error while parsing incoming message: %s\n%!" e
-    | Common.(Exn Terminated_by_Peer) -> Printf.eprintf "Connection terminated by peer\n%!"
   )
 
 let run port username =
