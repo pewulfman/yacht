@@ -21,4 +21,23 @@ let run_eio host port username env : unit =
       | Common.(Exn (Parse_error e)) -> Printf.printf "Error while parsing incoming message: %s\n%!" e
       | Common.(Exn Terminated_by_Peer) -> Printf.printf "Connection terminated by peer\n%!"
 
+let run_eio_bad host port _username env : unit =
+  let net = Stdenv.net env in
+  let _clock = Stdenv.clock env in
+  let _stdin = Stdenv.stdin env
+  and _stdout = Stdenv.stdout env in
+  Switch.run ~name:"client" @@ fun _sw ->
+    try
+      Net.with_tcp_connect ~host ~service:(string_of_int port) net
+      @@ fun socket ->
+        Flow.copy_string "toto" socket
+
+    with
+      | Io (Net.E (Net.Connection_failure Timeout), _) -> Printf.eprintf "Connection timeout\n%!"
+      | Io (Net.E (Net.Connection_failure No_matching_addresses), _) -> Printf.eprintf "No matching address\n%!"
+      | Io (Net.E (Net.Connection_failure Refused e), _) -> Format.eprintf "Connection refused: %a\n%!" Exn.Backend.pp e
+      | Io (Net.E (Net.Connection_reset e), _) -> Format.eprintf "Connection reset: %a\n%!" Exn.Backend.pp e
+      | Common.(Exn (Parse_error e)) -> Printf.printf "Error while parsing incoming message: %s\n%!" e
+      | Common.(Exn Terminated_by_Peer) -> Printf.printf "Connection terminated by peer\n%!"
 let run host port username = Eio_main.run (run_eio host port username)
+let run_bad host port username = Eio_main.run (run_eio_bad host port username)

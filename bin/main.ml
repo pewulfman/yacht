@@ -18,10 +18,14 @@ let client : unit Cmd.t =
   let info = Cmd.info "client" in
   Cmd.v info Term.(const Client.run $ host_arg 0 $ port_arg $ username_arg)
 
+let client_bad : unit Cmd.t =
+  let info = Cmd.info "client-bad" in
+  Cmd.v info Term.(const Client.run_bad $ host_arg 0 $ port_arg $ username_arg)
+
 (* Main command *)
 let cmd : unit Cmd.t =
   let doc = "Yet another Chat Server" in
   let info = Cmd.info "yacht" ~version:"%%VERSION%%" ~doc in
-  Cmd.group info [ server ; client ]
+  Cmd.group info [ server ; client ; client_bad ]
 
 let () = exit (Cmd.eval cmd)
